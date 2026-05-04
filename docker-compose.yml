@@ -1,0 +1,32 @@
+services:
+  ros2-humble:
+    image: humbel:1.4
+    container_name: ros2_humble
+    network_mode: host                  # 必须 host 才能用 GUI、设备、网络
+    ipc: host                           # 共享进程内存，避免GUI报错
+    privileged: true                    # 开启特权模式（硬件/串口/图形必备）
+    tty: true                           # 保持终端交互
+    stdin_open: true
+    volumes:
+      - /$HOME/ros2-humble/pip_lib:/root/pip_lib
+      - /$HOME/ros2-humble/work_ws:/root/work_ws
+      - /$HOME/ros2-humble/bashrc:/root/.bashrc
+      - /$HOME/ros2-humble/cyclonedds:/root/.config/cyclonedds  # 挂载 CycloneDDS 配置
+      - /tmp/.X11-unix:/tmp/.X11-unix   # 挂载 X11 套接字（GUI 必备）
+      - /dev:/dev                       # 挂载所有设备（摄像头、串口、舵机控制器）
+
+    # 环境变量：让 Docker 内程序显示到本机屏幕
+    environment:
+      - DISPLAY=${DISPLAY}              # 本机显示
+      - QT_X11_NO_MITSHM=1              # 修复 Qt GUI 报错
+      - XDG_RUNTIME_DIR=/tmp/runtime-user
+      - NVIDIA_DRIVER_CAPABILITIES=all  # 显卡加速（可选）
+      - NO_AT_BRIDGE=1   
+
+    # 自动加载 ROS2 环境并保持容器运行
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        if [ ! -d /tmp/runtime-user ]; then mkdir -p /tmp/runtime-user; fi &&
+        tail -f /dev/null
+      "
