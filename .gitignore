@@ -4,3 +4,4 @@ pip_lib
 work_ws/build/
 work_ws/install/
 work_ws/log/
+third-party-library/build/

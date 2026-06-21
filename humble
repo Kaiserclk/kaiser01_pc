@@ -58,6 +58,10 @@ def cmd_start(compose_cmd, args):
     except (subprocess.CalledProcessError, FileNotFoundError):
         print_color("Warning: xhost command failed, GUI may not work properly", "yellow")
     
+    # Remove existing container to avoid recreate compatibility issues with docker-compose v1
+    print_color("Removing existing container if present...", "yellow")
+    subprocess.run(["docker", "rm", "-f", "ros2_humble"], capture_output=True)
+    
     print_color("Starting ROS2 Humble container...", "green")
     run_compose(compose_cmd, "up", "-d")
     print_color("Container started successfully", "green")

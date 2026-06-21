@@ -102,5 +102,5 @@ export PYTHONPATH="/usr/local/lib/python3.10/dist-packages:$PYTHONPATH"
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export CYCLONEDDS_URI=file:///root/.config/cyclonedds/cyclonedds.xml
 source /opt/ros/humble/setup.bash
-
+export MUJOCO_DIR=$HOME/mujoco-3.6.0
 source /root/work_ws/install/setup.bash
