@@ -234,9 +234,9 @@ private:
         target_->setParameter("square size (px)", 60);
         target_->setParameter("margin size (px)", 2);
         target_->setParameter("marker border (bits)", 1);
-        target_->setParameter("ArUco dictionary", "DICT_5X5_250");
+        target_->setParameter("ArUco dictionary", "DICT_5X5");
         target_->setParameter("longest board side (m)", 0.24); 
-        target_->setParameter("measured marker size (m)", 0.045);  
+        target_->setParameter("measured marker size (m)", 0.040);  
       }
       else
       {
