@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""CLI tool for robot arm forward/inverse kinematics."""
+import os
+import argparse
+import sys
+from robot_util.arm_kinemarics import ArmKinematics
+from ament_index_python.packages import get_package_share_directory
+DEFAULT_URDF =os.path.join(get_package_share_directory("yahboomcar_description"),"urdf","rosmaster_m1pro.urdf.xacro")
+
+
+def _build_kin(args) -> ArmKinematics:
+    return ArmKinematics(urdf_path=args.urdf)
+
+
+def cmd_fk(args):
+    """Forward kinematics: joint angles -> end-effector pose."""
+    kin = _build_kin(args)
+    joints = [float(x) for x in args.joints]
+    result = kin.forward_kinematics(joints)
+    if result.success:
+        pose = result.data
+        print(f"Position:    x={pose.x:.4f}  y={pose.y:.4f}  z={pose.z:.4f} (m)")
+        print(f"Orientation: roll={pose.roll:.2f}  pitch={pose.pitch:.2f}  yaw={pose.yaw:.2f} (deg)")
+    else:
+        print(f"FK failed: {result.message}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_ik(args):
+    """Inverse kinematics: target pose -> joint angles."""
+    kin = _build_kin(args)
+    result = kin.inverse_kinematics(
+        target_x=args.x,
+        target_y=args.y,
+        target_z=args.z,
+        target_roll=args.roll,
+        target_pitch=args.pitch,
+        target_yaw=args.yaw,
+        seed_angles_deg=[float(x) for x in args.seed] if args.seed else None,
+        allow_approximate=True,
+    )
+    if result.success:
+        joints_str = ', '.join(f'{j:.2f}' for j in result.data)
+        print(f"Joint angles (deg): [{joints_str}]")
+        if result.approximate:
+            print(f"NOTE: approximate solution, position error = {result.position_error:.4f} m")
+    else:
+        print(f"IK failed: {result.message}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_info(args):
+    """Show joint names and limits from URDF."""
+    kin = _build_kin(args)
+    print(f"Joints ({kin.NUM_JOINTS}):")
+    for name, (lo, hi) in zip(kin._joint_names, kin._joint_limits_deg):
+        print(f"  {name:20s}  [{lo:7.2f}, {hi:7.2f}] deg")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Robot arm kinematics calculator")
+    parser.add_argument(
+        '--urdf', default=DEFAULT_URDF,
+        help='Path to URDF/xacro file (default: rosmaster_m1pro)')
+
+    sub = parser.add_subparsers(dest='command', required=True)
+
+    # --- fk ---
+    p_fk = sub.add_parser('fk', help='Forward kinematics: joints -> pose')
+    p_fk.add_argument(
+        'joints', nargs='+', metavar='ANGLE',
+        help='Joint angles in degrees (space separated)')
+
+    # --- ik ---
+    p_ik = sub.add_parser('ik', help='Inverse kinematics: pose -> joints')
+    p_ik.add_argument('--x', type=float, required=True, help='Target x (m)')
+    p_ik.add_argument('--y', type=float, required=True, help='Target y (m)')
+    p_ik.add_argument('--z', type=float, required=True, help='Target z (m)')
+    p_ik.add_argument('--roll', type=float, default=0.0, help='Target roll (deg, default 0)')
+    p_ik.add_argument('--pitch', type=float, default=0.0, help='Target pitch (deg, default 0)')
+    p_ik.add_argument('--yaw', type=float, default=0.0, help='Target yaw (deg, default 0)')
+    p_ik.add_argument('--seed', nargs='+', metavar='ANGLE',
+                      help='Seed joint angles in degrees (optional)')
+
+    # --- info ---
+    sub.add_parser('info', help='Show joint names and limits')
+
+    args = parser.parse_args()
+    {'fk': cmd_fk, 'ik': cmd_ik, 'info': cmd_info}[args.command](args)
+
+
+if __name__ == '__main__':
+    main()

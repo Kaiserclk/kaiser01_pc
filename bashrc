@@ -99,6 +99,7 @@ fi
 #fi
 export ROS_DOMAIN_ID=10
 export PYTHONPATH="/usr/local/lib/python3.10/dist-packages:$PYTHONPATH"
+export PYTHONPATH="/root/pip_lib/.venv/lib/python3.10/site-packages:$PYTHONPATH"
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export CYCLONEDDS_URI=file:///root/.config/cyclonedds/cyclonedds.xml
 source /opt/ros/humble/setup.bash

@@ -18,9 +18,9 @@
   <link name="measure"/><!-- 测量点 -->
 
   <joint name="measure_joint" type="fixed">
-    <parent link="base_footprint"/>
-    <child link="measure"/>
-    <origin xyz="0.153 0.0 0.0" rpy="0 0 0"/>
+    <parent link="measure"/>
+    <child link="base_footprint"/>
+    <origin xyz="-0.153 0.0 0.0" rpy="0 0 0"/>
   </joint>
 
 
