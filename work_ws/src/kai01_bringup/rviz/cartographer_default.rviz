@@ -8,6 +8,9 @@ Panels:
         - /Status1
         - /TF1/Frames1
         - /LaserScan1/Topic1
+        - /SubmapsDisplay1
+        - /SubmapsDisplay1/Submaps1
+        - /SubmapsDisplay1/Submaps1/Trajectory 01
       Splitter Ratio: 0.5
     Tree Height: 840
   - Class: rviz_common/Selection
@@ -90,12 +93,22 @@ Visualization Manager:
         base_footprint:
           Value: false
         base_link:
-          Value: true
+          Value: false
+        camera_color_frame:
+          Value: false
+        camera_color_optical_frame:
+          Value: false
         camera_connect_link:
+          Value: false
+        camera_depth_frame:
+          Value: false
+        camera_depth_optical_frame:
           Value: false
         camera_link:
           Value: false
         coupling:
+          Value: false
+        gripper_tcp:
           Value: false
         imu_link:
           Value: false
@@ -148,9 +161,16 @@ Visualization Manager:
                         Link_3:
                           camera_connect_link:
                             camera_link:
-                              {}
+                              camera_depth_frame:
+                                camera_color_frame:
+                                  camera_color_optical_frame:
+                                    {}
+                                camera_depth_optical_frame:
+                                  {}
                           servo_5:
                             coupling:
+                              gripper_tcp:
+                                {}
                               servo_6:
                                 l_in_link:
                                   l_out_link:
@@ -190,14 +210,147 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: ""
+        Value: /robot_description
       Enabled: true
       Links:
         All Links Enabled: true
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
-        Link Tree Style: ""
+        Link Tree Style: Links in Alphabetic Order
+        Link_1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link_2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link_3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        arm_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        back_shell_black_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        back_shell_green_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_footprint:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_connect_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        coupling:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        gripper_tcp:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_in_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_out_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        lidar:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_in_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_out_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        servo_2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        servo_5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        servo_6:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        wheel_left_back_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        wheel_left_front_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        wheel_right_back_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        wheel_right_front_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -209,8 +362,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 0.7647740244865417
-        Min Value: -2.4417431354522705
+        Max Value: 2.3532721996307373
+        Min Value: 0.9205607771873474
         Value: true
       Axis: X
       Channel Name: intensity
@@ -239,6 +392,29 @@ Visualization Manager:
         Value: /scan
       Use Fixed Frame: true
       Use rainbow: true
+      Value: true
+    - Class: cartographer_rviz/SubmapsDisplay
+      Enabled: true
+      Fade-out distance: 1
+      High Resolution: true
+      Low Resolution: false
+      Name: SubmapsDisplay
+      Submap query service: /submap_query
+      Submaps:
+        All: true
+        All Submap Pose Markers: true
+        Trajectory 0:
+          0.77: true
+          Submap Pose Markers: true
+          Value: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /submap_list
+      Tracking frame: base_link
       Value: true
   Enabled: true
   Global Options:
@@ -286,25 +462,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 6.471736431121826
+      Distance: 7.979599475860596
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.7677801847457886
-        Y: 0.13048499822616577
-        Z: -0.00350557710044086
+        X: 1.4937105178833008
+        Y: -0.12735295295715332
+        Z: -0.0039611863903701305
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.544796347618103
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.5403960943222046
+      Yaw: 4.785394191741943
     Saved: ~
 Window Geometry:
   Displays:

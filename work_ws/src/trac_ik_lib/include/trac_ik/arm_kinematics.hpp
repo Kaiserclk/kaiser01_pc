@@ -1,32 +1,3 @@
-// Copyright (c) 2025, TRACLabs, Inc.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-//    * Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//
-//    * Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//
-//    * Neither the name of the {copyright_holder} nor the names of its
-//      contributors may be used to endorse or promote products derived from
-//      this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
-
 #ifndef TRAC_IK__ARM_KINEMATICS_HPP_
 #define TRAC_IK__ARM_KINEMATICS_HPP_
 
@@ -61,10 +32,9 @@ struct TRAC_IK_PUBLIC Pose
 
 /// @brief Unified result for kinematics operations.
 ///
-/// On success:         success=true,  approximate=false, joints populated
-/// On failure:         success=false, message set
-/// On approximate:     success=true,  approximate=true, position_error set
-/// On pitch sweep:     success=true,  adjusted_pitch set
+/// On success:      success=true,  approximate=false, joints populated
+/// On failure:      success=false, message set
+/// On approximate:  success=true,  approximate=true,  position_error set
 struct TRAC_IK_PUBLIC KinResult
 {
   bool success = false;
@@ -74,26 +44,13 @@ struct TRAC_IK_PUBLIC KinResult
   std::string message;
   bool approximate = false;
   double position_error = 0.0;      // meters, meaningful when approximate=true
-  double adjusted_pitch = -1.0;     // degrees, set when solution via pitch sweep (<0 means unused)
 };
 
 /// @brief Kinematics solver wrapper using TRAC-IK.
-///
-/// Provides forward kinematics, inverse kinematics (with multi-seed retry,
-/// pitch sweep, and approximate fallback), Jacobian computation, damped
-/// pseudoinverse, and manipulability measure.
-///
-/// Designed for 5DOF arms: position (x,y,z) and pitch are tightly controlled;
-/// roll and yaw are treated as unconstrained (loose bounds) since a 5DOF arm
-/// cannot independently control all 6 task-space dimensions.
 class TRAC_IK_PUBLIC ArmKinematics
 {
 public:
   /// @brief Construct from URDF XML string (provided by caller).
-  ///
-  /// The caller is responsible for providing a valid URDF XML string
-  /// (e.g. read from a .urdf file, or generated from .xacro externally).
-  ///
   /// @param urdf_xml     URDF robot description as an XML string.
   /// @param base_link    Name of the base link.
   /// @param tip_link     Name of the end-effector (tip) link.
@@ -117,6 +74,17 @@ public:
   /// @brief Joint limits in degrees, as (lower, upper) pairs.
   const std::vector<std::pair<double, double>> & jointLimits() const { return joint_limits_deg_; }
 
+  // ---- Cartesian tolerance bounds ----
+
+  /// @brief Get current Cartesian tolerance bounds.
+  const KDL::Twist & bounds() const { return bounds_; }
+
+  /// @brief Set Cartesian tolerance bounds for IK solving.
+  /// @param x, y, z       Position tolerances (meters).
+  /// @param roll, pitch, yaw  Orientation tolerances (radians).
+  void setBounds(double x, double y, double z,
+                 double roll, double pitch, double yaw);
+
   // ---- Forward Kinematics ----
 
   /// @brief Compute forward kinematics.
@@ -126,29 +94,18 @@ public:
 
   // ---- Inverse Kinematics ----
 
-  /// @brief Compute inverse kinematics with multi-stage solving.
-  ///
-  /// Stages:
-  ///   1. Exact IK with user seed, then multi-seed retry at original pitch.
-  ///   2. Pitch sweep over [pitch - pitch_search, pitch + pitch_search] (1° step).
-  ///   3. Approximate fallback using KDL TL solver (if allow_approximate).
-  ///
+  /// @brief Compute inverse kinematics.
   /// @param x, y, z            Target position (meters).
-  /// @param roll, pitch, yaw   Target orientation (degrees). Roll and yaw are
-  ///                           treated as soft constraints for 5DOF arms.
+  /// @param roll, pitch, yaw   Target orientation (degrees).
   /// @param seed               Initial joint seed (degrees, size num_joints).
-  ///                           Empty = use zero seed.
-  /// @param n_attempts         Number of random seeds to try (≥1).
+  ///                           Empty = let TRAC-IK start from zero.
   /// @param allow_approximate  If true, return best-effort on total failure.
-  /// @param pitch_search       Half-range in degrees for pitch sweep. ≤0 disables.
   /// @return KinResult with joints on success.
   KinResult inverseKinematics(
     double x, double y, double z,
     double roll = 0.0, double pitch = 0.0, double yaw = 0.0,
     const std::vector<double> & seed = {},
-    int n_attempts = 10,
-    bool allow_approximate = true,
-    double pitch_search = 10.0);
+    bool allow_approximate = false);
 
   // ---- Jacobian ----
 
@@ -166,8 +123,7 @@ public:
 
   /// @brief Compute Yoshikawa manipulability μ = √det(JJᵀ).
   /// @param joints_deg  Joint angles in degrees.
-  /// @return KinResult float value accessible via .position_error field (temporary).
-  ///         >0 = well-conditioned, ≈0 = near singularity.
+  /// @return μ > 0 = well-conditioned, ≈0 = near singularity, <0 = error.
   double computeManipulability(const std::vector<double> & joints_deg) const;
 
 private:
@@ -181,9 +137,6 @@ private:
     const KDL::Frame & target,
     const KDL::JntArray & seed,
     KDL::JntArray & result) const;
-
-  /// Generate diverse seed joint configurations.
-  std::vector<KDL::JntArray> generateSeeds(int n) const;
 
   /// Try approximate IK using KDL TL solver (writes best effort to q_out).
   bool solveIkApproximate(
@@ -199,7 +152,6 @@ private:
 
   // ---- Members ----
 
-  bool initialized_ = false;
   size_t num_joints_ = 0;
 
   std::string base_link_;
@@ -219,11 +171,7 @@ private:
   std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver_;
   std::unique_ptr<KDL::ChainJntToJacSolver> jac_solver_;
   std::unique_ptr<KDL::ChainIkSolverPos_TL> tl_solver_;  // for approximate fallback
-
-  // Default twist bounds for 5DOF arm:
-  // Tight: position (xyz) + pitch
-  // Loose: roll + yaw (uncontrollable by 5DOF arm)
-  KDL::Twist default_bounds_;
+  KDL::Twist bounds_;
 
   double eps_ = 1e-5;
 };

@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""CLI tool for robot arm forward/inverse kinematics using TRAC-IK.
+
+This CLI uses the trac_ik_py bindings (pybind11 wrapper over trac_ik_lib).
+By default, yaw tolerance is fully relaxed (M_PI), meaning yaw is treated as
+an arbitrary/uncontrollable dimension — suitable for 5DOF or measurement tasks
+where yaw does not need to match exactly.
+
+Usage:
+    trac_ik_cal fk 0 0 0 0 0 0              # forward kinematics
+    trac_ik_cal ik --x 0.3 --y 0 --z 0.2 --pitch 0  # inverse kinematics
+    trac_ik_cal info                          # show joint names and limits
+"""
+
+import argparse
+import logging
+import math
+import os
+import subprocess
+import sys
+import trac_ik_py
+from ament_index_python.packages import get_package_share_directory
+
+DEFAULT_URDF = os.path.join(get_package_share_directory("kai01_description"), "urdf", "kai01.urdf.xacro")
+
+# Yaw is arbitrary by default — fully relaxed in IK bounds
+DEFAULT_YAW_EPS = math.pi
+
+
+def _read_urdf_xml(path: str) -> str:
+    """Read URDF XML from a file. Auto-converts .xacro to URDF via the xacro tool."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"URDF file not found: {path}")
+    if path.endswith(".xacro"):
+        logging.info("Converting xacro → URDF: %s", path)
+        result = subprocess.run(
+            ["xacro", path],
+            capture_output=True, text=True, check=True)
+        return result.stdout
+    with open(path) as f:
+        return f.read()
+
+
+def _build_kin(args) -> trac_ik_py.ArmKinematics:
+    """Build ArmKinematics instance from CLI args."""
+    urdf_xml = _read_urdf_xml(DEFAULT_URDF)
+    kin = trac_ik_py.ArmKinematics(
+        urdf_xml,
+        base_link=args.base_link,
+        tip_link=args.tip_link,
+        timeout=args.timeout,
+        eps=args.eps)
+    # Relax yaw by default — set yaw tolerance to π (fully unconstrained)
+    kin.set_bounds(args.eps, # x
+                   args.eps, # y
+                   args.eps, # z
+                   math.pi, # roll
+                   args.eps, # pitch
+                   math.pi) # yaw
+    return kin
+
+def cmd_fk(args):
+    """Forward kinematics: joint angles -> end-effector pose."""
+    kin = _build_kin(args)
+    joints = [float(x) for x in args.joints]
+    result = kin.forward_kinematics(joints)
+    if result.success:
+        p = result.pose
+        print(f"Position:    x={p.x:.4f}  y={p.y:.4f}  z={p.z:.4f} (m)")
+        print(f"Orientation: roll={p.roll:.2f}  pitch={p.pitch:.2f}  yaw={p.yaw:.2f} (deg)")
+    else:
+        print(f"FK failed: {result.message}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_ik(args):
+    """Inverse kinematics: target pose -> joint angles."""
+    kin = _build_kin(args)
+    seed = [float(x) for x in args.seed] if args.seed else []
+
+    result = kin.inverse_kinematics(
+        args.x, args.y, args.z,
+        roll=args.roll,
+        pitch=args.pitch,
+        yaw=args.yaw,
+        seed=seed,
+        allow_approximate=args.approximate)
+
+    if result.success:
+        joints_str = ", ".join(f"{j:.2f}" for j in result.joints)
+        print(f"Joint angles (deg): [{joints_str}]")
+        if result.approximate:
+            print(f"NOTE: approximate solution, "
+                  f"position error = {result.position_error:.4f} m")
+    else:
+        print(f"IK failed: {result.message}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_jacobian(args):
+    """Compute Jacobian matrix."""
+    kin = _build_kin(args)
+    joints = [float(x) for x in args.joints]
+    result = kin.compute_jacobian(joints)
+    if not result.success:
+        print(f"Jacobian failed: {result.message}", file=sys.stderr)
+        sys.exit(1)
+
+    n_cols = kin.num_joints
+    for row in range(6):
+        vals = result.matrix[row * n_cols:(row + 1) * n_cols]
+        print("  ".join(f"{v:10.4f}" for v in vals))
+
+
+def cmd_manipulability(args):
+    """Compute manipulability measure."""
+    kin = _build_kin(args)
+    joints = [float(x) for x in args.joints]
+    mu = kin.compute_manipulability(joints)
+    print(f"Manipulability μ = {mu:.6e}")
+
+
+def cmd_info(args):
+    """Show joint names and limits from URDF."""
+    kin = _build_kin(args)
+    print(f"Joints ({kin.num_joints}):")
+    for name, (lo, hi) in zip(kin.joint_names, kin.joint_limits):
+        print(f"  {name:20s}  [{lo:7.2f}, {hi:7.2f}] deg")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Robot arm kinematics calculator (TRAC-IK backend)")
+    parser.add_argument(
+        "--base-link", default="measure",
+        help="Base link name (default: arm_base_link)")
+    parser.add_argument(
+        "--tip-link", default="gripper_tcp",
+        help="End-effector link name (default: l_out_link)")
+    parser.add_argument(
+        "--eps", type=float, default=1e-3,
+        help="Cartesian error tolerance (default: 1e-5)")
+    parser.add_argument(
+        "--timeout", type=float, default=0.5,
+        help="IK timeout in seconds (default: 3.0)")
+
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    # --- fk ---
+    p_fk = sub.add_parser("fk", help="Forward kinematics: joints -> pose")
+    p_fk.add_argument(
+        "joints", nargs="+", metavar="ANGLE",
+        help="Joint angles in degrees (space separated)")
+
+    # --- ik ---
+    p_ik = sub.add_parser("ik", help="Inverse kinematics: pose -> joints")
+    p_ik.add_argument("--x", type=float, required=True, help="Target x (m)")
+    p_ik.add_argument("--y", type=float, required=True, help="Target y (m)")
+    p_ik.add_argument("--z", type=float, required=True, help="Target z (m)")
+    p_ik.add_argument("--roll", type=float, default=0.0,
+                      help="Target roll (deg, default 0)")
+    p_ik.add_argument("--pitch", type=float, default=0.0,
+                      help="Target pitch (deg, default 0)")
+    p_ik.add_argument("--yaw", type=float, default=0.0,
+                      help="Target yaw (deg, default 0; ignored unless --strict-yaw)")
+    p_ik.add_argument("--seed", nargs="+", metavar="ANGLE",
+                      help="Seed joint angles in degrees (optional)")
+    p_ik.add_argument("--approximate", action="store_true", default=False,
+                      help="Return approximate solution on failure (default: on)")
+
+    # --- jacobian ---
+    p_jac = sub.add_parser("jac", help="Compute 6xN Jacobian matrix")
+    p_jac.add_argument(
+        "joints", nargs="+", metavar="ANGLE",
+        help="Joint angles in degrees (space separated)")
+
+    # --- manipulability ---
+    p_mu = sub.add_parser("mu", help="Compute manipulability μ = √det(JJᵀ)")
+    p_mu.add_argument(
+        "joints", nargs="+", metavar="ANGLE",
+        help="Joint angles in degrees (space separated)")
+
+    # --- info ---
+    sub.add_parser("info", help="Show joint names and limits")
+
+    args = parser.parse_args()
+
+    dispatch = {
+        "fk": cmd_fk,
+        "ik": cmd_ik,
+        "jac": cmd_jacobian,
+        "mu": cmd_manipulability,
+        "info": cmd_info,
+    }
+    dispatch[args.command](args)
+
+
+if __name__ == "__main__":
+    main()
